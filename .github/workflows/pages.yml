@@ -29,10 +29,11 @@ jobs:
 
       - name: Build static site
         run: |
+          set -euo pipefail
+          test -d assets
           mkdir -p _site
           cp index.html site-design.html themed-designs.html banner-insights.html services.html preorders.html styles.css script.js _site/
-          test -f assets.zip || (echo "assets.zip is required" && exit 1)
-          unzip -q assets.zip -d _site
+          cp -R assets _site/assets
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
