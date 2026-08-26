@@ -69,7 +69,10 @@ lightbox.innerHTML = `
     </div>
     <button class="lightbox-button lightbox-nav lightbox-prev" type="button" aria-label="Previous image">←</button>
     <button class="lightbox-button lightbox-nav lightbox-next" type="button" aria-label="Next image">→</button>
-    <p class="lightbox-caption" aria-live="polite"></p>
+    <div class="lightbox-caption-wrap">
+      <p class="lightbox-caption" aria-live="polite"></p>
+      <a class="lightbox-source-link" target="_blank" rel="noopener noreferrer">View supporting data in Google Sheets ↗</a>
+    </div>
   </div>
 `;
 document.body.append(lightbox);
@@ -78,6 +81,7 @@ const lightboxDialog = lightbox.querySelector(".lightbox-dialog");
 const lightboxStage = lightbox.querySelector(".lightbox-stage");
 const lightboxImage = lightbox.querySelector(".lightbox-image");
 const lightboxCaption = lightbox.querySelector(".lightbox-caption");
+const lightboxSourceLink = lightbox.querySelector(".lightbox-source-link");
 const closeButton = lightbox.querySelector(".lightbox-close");
 const zoomButton = lightbox.querySelector(".lightbox-zoom");
 const previousButton = lightbox.querySelector(".lightbox-prev");
@@ -113,6 +117,9 @@ function renderLightboxItem() {
   lightboxImage.src = fullSource;
   lightboxImage.alt = sourceImage.alt;
   lightboxCaption.textContent = trigger.dataset.caption || trigger.closest("figure")?.querySelector("figcaption")?.textContent || sourceImage.alt;
+  const supportingUrl = trigger.dataset.supportingUrl || "";
+  lightboxSourceLink.href = supportingUrl;
+  lightboxSourceLink.hidden = !supportingUrl;
 
   const hasMultipleItems = galleryItems.length > 1;
   previousButton.hidden = !hasMultipleItems;
