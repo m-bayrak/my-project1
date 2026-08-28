@@ -662,16 +662,6 @@ iframe:focus-visible {
   text-transform: uppercase;
 }
 
-.lightbox-gallery-sources {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 .image-trigger {
   display: flex;
   align-items: center;
@@ -830,7 +820,8 @@ iframe:focus-visible {
   overscroll-behavior: contain;
 }
 
-.lightbox-image {
+.lightbox-image,
+.lightbox-video {
   display: block;
   width: auto;
   max-width: 100%;

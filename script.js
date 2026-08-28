@@ -66,6 +66,7 @@ lightbox.innerHTML = `
     </div>
     <div class="lightbox-stage">
       <img class="lightbox-image" alt="Expanded portfolio image">
+      <video class="lightbox-video" controls playsinline hidden></video>
     </div>
     <button class="lightbox-button lightbox-nav lightbox-prev" type="button" aria-label="Previous image">←</button>
     <button class="lightbox-button lightbox-nav lightbox-next" type="button" aria-label="Next image">→</button>
@@ -80,6 +81,7 @@ document.body.append(lightbox);
 const lightboxDialog = lightbox.querySelector(".lightbox-dialog");
 const lightboxStage = lightbox.querySelector(".lightbox-stage");
 const lightboxImage = lightbox.querySelector(".lightbox-image");
+const lightboxVideo = lightbox.querySelector(".lightbox-video");
 const lightboxCaption = lightbox.querySelector(".lightbox-caption");
 const lightboxSourceLink = lightbox.querySelector(".lightbox-source-link");
 const closeButton = lightbox.querySelector(".lightbox-close");
@@ -91,6 +93,13 @@ let galleryItems = [];
 let galleryIndex = 0;
 let previouslyFocused = null;
 let touchStartX = null;
+let channelGalleryManifest = null;
+let activeChannelItems = [];
+let activeChannel = null;
+let loadedChannelItemCount = 0;
+
+const GALLERY_BATCH_SIZE = 8;
+const PRELOAD_THRESHOLD = 3;
 
 function visibleGalleryItems(groupName) {
   return Array.from(document.querySelectorAll(".js-lightbox")).filter((trigger) => {
@@ -107,26 +116,92 @@ function resetZoom() {
   lightboxStage.scrollLeft = 0;
 }
 
-function renderLightboxItem() {
-  const trigger = galleryItems[galleryIndex];
-  if (!trigger) return;
+function stopLightboxVideo() {
+  lightboxVideo.pause();
+  lightboxVideo.removeAttribute("src");
+  lightboxVideo.load();
+}
 
-  const sourceImage = trigger.querySelector("img");
-  const fullSource = sourceImage.dataset.full || sourceImage.currentSrc || sourceImage.src || sourceImage.dataset.src;
+function getLightboxItemData(item) {
+  if (item instanceof Element) {
+    const sourceImage = item.querySelector("img");
+    return {
+      type: "image",
+      src: sourceImage.dataset.full || sourceImage.currentSrc || sourceImage.src || sourceImage.dataset.src,
+      alt: sourceImage.alt,
+      caption: item.dataset.caption || item.closest("figure")?.querySelector("figcaption")?.textContent || sourceImage.alt,
+      supportingUrl: item.dataset.supportingUrl || ""
+    };
+  }
+
+  return item;
+}
+
+function preloadChannelItem(item) {
+  if (item.type === "video") return;
+  const preloadImage = new Image();
+  preloadImage.decoding = "async";
+  preloadImage.src = item.src;
+}
+
+/*
+  Channel galleries use progressive loading:
+  - the first 8 full-size assets load when a channel opens;
+  - the next batch loads near the end of the already loaded items;
+  - video files load only after the user opens that video.
+  This keeps the first page load light while preserving source image quality.
+*/
+function loadNextChannelBatch() {
+  const nextBatch = activeChannelItems.slice(
+    loadedChannelItemCount,
+    loadedChannelItemCount + GALLERY_BATCH_SIZE
+  );
+
+  nextBatch.forEach(preloadChannelItem);
+  galleryItems.push(...nextBatch);
+  loadedChannelItemCount += nextBatch.length;
+}
+
+function maybeLoadNextChannelBatch() {
+  const nearEndOfLoadedItems = galleryIndex >= galleryItems.length - PRELOAD_THRESHOLD;
+  if (activeChannel && nearEndOfLoadedItems && loadedChannelItemCount < activeChannelItems.length) {
+    loadNextChannelBatch();
+  }
+}
+
+function renderLightboxItem() {
+  const item = getLightboxItemData(galleryItems[galleryIndex]);
+  if (!item) return;
+
   resetZoom();
-  lightboxImage.src = fullSource;
-  lightboxImage.alt = sourceImage.alt;
-  lightboxCaption.textContent = trigger.dataset.caption || trigger.closest("figure")?.querySelector("figcaption")?.textContent || sourceImage.alt;
-  const supportingUrl = trigger.dataset.supportingUrl || "";
-  lightboxSourceLink.href = supportingUrl;
-  lightboxSourceLink.hidden = !supportingUrl;
+  if (item.type === "video") {
+    lightboxImage.hidden = true;
+    lightboxVideo.hidden = false;
+    lightboxVideo.src = item.src;
+    lightboxVideo.setAttribute("aria-label", item.alt);
+    lightboxVideo.load();
+  } else {
+    stopLightboxVideo();
+    lightboxVideo.hidden = true;
+    lightboxImage.hidden = false;
+    lightboxImage.src = item.src;
+    lightboxImage.alt = item.alt;
+  }
+
+  lightboxCaption.textContent = item.caption;
+  lightboxSourceLink.href = item.supportingUrl || "";
+  lightboxSourceLink.hidden = !item.supportingUrl;
 
   const hasMultipleItems = galleryItems.length > 1;
   previousButton.hidden = !hasMultipleItems;
   nextButton.hidden = !hasMultipleItems;
+  maybeLoadNextChannelBatch();
 }
 
 function openLightbox(trigger) {
+  activeChannel = null;
+  activeChannelItems = [];
+  loadedChannelItemCount = 0;
   galleryItems = visibleGalleryItems(trigger.dataset.gallery);
   galleryIndex = Math.max(0, galleryItems.indexOf(trigger));
   previouslyFocused = document.activeElement;
@@ -136,10 +211,45 @@ function openLightbox(trigger) {
   closeButton.focus();
 }
 
+async function openChannelGallery(trigger) {
+  trigger.disabled = true;
+  try {
+    if (!channelGalleryManifest) {
+      const response = await fetch("assets/preorders/channels/gallery-manifest.json");
+      if (!response.ok) throw new Error("Channel gallery manifest could not be loaded.");
+      channelGalleryManifest = await response.json();
+    }
+
+    activeChannel = trigger.dataset.channelGallery;
+    const channelItems = channelGalleryManifest[activeChannel] || [];
+    activeChannelItems = [...channelItems]
+      .sort((a, b) => a.bytes - b.bytes)
+      .map((item, index) => ({
+        ...item,
+        alt: `${activeChannel.replace(/-/g, " ")} archive item`,
+        caption: `${item.caption} · ${index + 1} of ${channelItems.length}`
+      }));
+    loadedChannelItemCount = 0;
+    galleryItems = [];
+    galleryIndex = 0;
+    loadNextChannelBatch();
+    previouslyFocused = document.activeElement;
+    renderLightboxItem();
+    lightbox.hidden = false;
+    document.body.classList.add("lightbox-open");
+    closeButton.focus();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    trigger.disabled = false;
+  }
+}
+
 function closeLightbox() {
   if (lightbox.hidden) return;
   lightbox.hidden = true;
   document.body.classList.remove("lightbox-open");
+  stopLightboxVideo();
   resetZoom();
   if (previouslyFocused && typeof previouslyFocused.focus === "function") previouslyFocused.focus();
 }
@@ -152,6 +262,10 @@ function moveLightbox(direction) {
 
 document.querySelectorAll(".js-lightbox").forEach((trigger) => {
   trigger.addEventListener("click", () => openLightbox(trigger));
+});
+
+document.querySelectorAll("[data-channel-gallery]").forEach((trigger) => {
+  trigger.addEventListener("click", () => openChannelGallery(trigger));
 });
 
 closeButton.addEventListener("click", closeLightbox);
