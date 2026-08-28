@@ -1,4 +1,4 @@
-# Mark Bayrak · Growth & E-commerce Case Studies
+# Mykola Strelbitskyi · Growth & E-commerce Case Studies
 
 English professional portfolio covering growth marketing, e-commerce, paid acquisition, website optimization, creative operations, services and product launches. The historical portfolio period is primarily 2019–2021.
 
