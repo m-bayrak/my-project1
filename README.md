@@ -2,6 +2,8 @@
 
 English professional portfolio covering growth marketing, e-commerce, paid acquisition, website optimization, creative operations, services and product launches. The historical portfolio period is primarily 2019–2021.
 
+Live site: [m-bayrak.github.io/growth-marketing-portfolio](https://m-bayrak.github.io/growth-marketing-portfolio/)
+
 ## Pages
 
 - `index.html` — recruiter-focused overview and headline results
